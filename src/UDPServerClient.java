@@ -17,12 +17,12 @@ public class UDPServerClient {
                     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                     socketServidor.receive(receivePacket); // Recebendo dados
                     String mensagemRecebida = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                    System.out.println("Servidor recebeu: " + mensagemRecebida);
+                    System.out.println("\n" + receivePacket.getAddress() + ": " + mensagemRecebida);
 
                     // Enviar resposta ao cliente (opcional)
                     InetAddress enderecoCliente = receivePacket.getAddress();
                     int portaCliente = receivePacket.getPort();
-                    String resposta = "Mensagem recebida";
+                    String resposta = "certinho";
                     byte[] sendData = resposta.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, enderecoCliente, portaCliente);
                     socketServidor.send(sendPacket); // Enviando resposta
@@ -38,7 +38,7 @@ public class UDPServerClient {
                 Scanner scanner = new Scanner(System.in);
 
                 while (true) {
-                    System.out.print("Digite uma mensagem para enviar ao servidor: ");
+                    //System.out.print("Digite uma mensagem para enviar ao servidor: ");
                     String mensagem = scanner.nextLine();
                     byte[] sendData = mensagem.getBytes();
 
@@ -51,7 +51,7 @@ public class UDPServerClient {
                     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                     socketCliente.receive(receivePacket);
                     String respostaServidor = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                    System.out.println("Cliente recebeu resposta do servidor: " + respostaServidor);
+                    System.out.print("  " + respostaServidor);
                 }
             } catch (IOException e) {
                 e.printStackTrace();
