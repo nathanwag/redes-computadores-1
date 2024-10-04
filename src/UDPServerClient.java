@@ -2,6 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.util.Scanner;
 
+import Frios.Input;
 public class UDPServerClient {
     public static void main(String[] args) {
         int portaServidor = 8888;
@@ -22,7 +23,7 @@ public class UDPServerClient {
                     // Enviar resposta ao cliente (opcional)
                     InetAddress enderecoCliente = receivePacket.getAddress();
                     int portaCliente = receivePacket.getPort();
-                    String resposta = "certinho";
+                    String resposta = "ok";
                     byte[] sendData = resposta.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, enderecoCliente, portaCliente);
                     socketServidor.send(sendPacket); // Enviando resposta
@@ -50,8 +51,8 @@ public class UDPServerClient {
                     byte[] receiveData = new byte[1024];
                     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                     socketCliente.receive(receivePacket);
-                    String respostaServidor = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                    System.out.print("  " + respostaServidor);
+                    // String respostaServidor = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                    // System.out.print("  " + respostaServidor);
                 }
             } catch (IOException e) {
                 e.printStackTrace();
