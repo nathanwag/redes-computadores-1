@@ -1,0 +1,19 @@
+docker run -it --privileged gcc
+
+apt update
+
+apt install -y bpftrace
+apt install -y bpftool
+apt install -y nano
+apt install -y net-tools
+
+mount -t tracefs tracefs /sys/kernel/tracing
+
+gcc -o programa programa.c
+
+
+MEUS DOCKERS
+
+docker exec -it nervous_mirzakhani bash
+docker exec -it optimistic_carson bash
+docker exec -it great_germain bash

@@ -1,4 +1,3 @@
-package Frios;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -27,7 +26,7 @@ public class HibridoUDP {
     }
 
     public static void main(String[] args) {
-        String ip = "172.20.10.7";
+        String ip = "172.20.10.6";
         int port = 1730;
         try {
             DatagramSocket socket = new DatagramSocket(port);
