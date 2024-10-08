@@ -9,6 +9,7 @@
 // Definições
 #define PORT 8888
 #define BUFFER_SIZE 1024
+#define MAX_SERVERS 10
 
 // Lista de IPs dos servidores
 const char *enderecosIPs[] = {
@@ -18,6 +19,18 @@ const char *enderecosIPs[] = {
 };
 int numServidores;
 int periodicidade = 10; // Tempo padrão de coleta em segundos
+char ip_local[INET_ADDRSTRLEN]; // Variável global para armazenar o IP local
+
+// Estrutura para armazenar as métricas de um servidor
+typedef struct {
+    char ip[INET_ADDRSTRLEN];
+    int total_cpu;
+    int total_memoria;
+    int contagem;
+} Metrics;
+
+// Array para armazenar as métricas de cada servidor
+Metrics metrics[MAX_SERVERS];
 
 // Função para obter o IP local da máquina
 void obter_ip_local(char *ip_local) {
@@ -58,6 +71,46 @@ void coletar_metricas(char *metricas, const char *ip_maquina) {
     snprintf(metricas, BUFFER_SIZE, "IP: %s - CPU: %d%% - Memória: %dMB\n", ip_maquina, uso_cpu, uso_memoria);
 }
 
+// Função para calcular e armazenar as métricas
+void armazenar_metricas(const char *metricas) {
+    char ip[INET_ADDRSTRLEN];
+    int uso_cpu, uso_memoria;
+
+    // Extrair IP, uso de CPU e memória das métricas recebidas
+    sscanf(metricas, "IP: %s - CPU: %d%% - Memória: %dMB", ip, &uso_cpu, &uso_memoria);
+
+    for (int i = 0; i < numServidores; i++) {
+        if (strcmp(ip, enderecosIPs[i]) == 0) {
+            // Atualizar métricas para este servidor
+            metrics[i].total_cpu += uso_cpu;
+            metrics[i].total_memoria += uso_memoria;
+            metrics[i].contagem++;
+
+            return;
+        }
+    }
+}
+
+// Função para exibir a tabela de métricas
+void exibir_tabela() {
+    printf("\n+-----------------+--------------------+-----------------------+----------+\n");
+    printf("| IP              | Média CPU (%)      | Média Memória (MB)    | Contagem |\n");
+    printf("+-----------------+--------------------+-----------------------+----------+\n");
+    
+    for (int i = 0; i < numServidores; i++) {
+        if (metrics[i].contagem > 0) {
+            printf("| %-15s | %-18.2f | %-21.2f | %-8d |\n", 
+                metrics[i].ip,
+                (float)metrics[i].total_cpu / metrics[i].contagem,
+                (float)metrics[i].total_memoria / metrics[i].contagem,
+                metrics[i].contagem);
+        }
+    }
+
+    printf("+-----------------+--------------------+-----------------------+----------+\n");
+    printf("IP local: %s\n", ip_local); // Mostrar IP local
+}
+
 // Função para o servidor UDP (para receber mensagens e métricas)
 void *servidor_udp(void *arg) {
     int sockfd;
@@ -86,6 +139,14 @@ void *servidor_udp(void *arg) {
 
     printf("Servidor UDP pronto, escutando na porta %d\n", PORT);
 
+    // Inicializar as métricas
+    for (int i = 0; i < numServidores; i++) {
+        strcpy(metrics[i].ip, enderecosIPs[i]);
+        metrics[i].total_cpu = 0;
+        metrics[i].total_memoria = 0;
+        metrics[i].contagem = 0;
+    }
+
     while (1) {
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clienteAddr, &addrLen);
         buffer[n] = '\0';
@@ -93,16 +154,15 @@ void *servidor_udp(void *arg) {
         // Apenas exibir as métricas recebidas
         printf("Métricas recebidas: %s\n", buffer);
 
-        // Verificar se é um comando para alterar periodicidade
-        if (strncmp(buffer, "periodicidade:", 14) == 0) {
-            int nova_periodicidade = atoi(buffer + 14);
-            periodicidade = nova_periodicidade > 0 ? nova_periodicidade : periodicidade;
-            printf("Periodicidade alterada para %d segundos\n", periodicidade);
-        }
+        // Armazenar métricas
+        armazenar_metricas(buffer);
 
         // Enviar confirmação
         const char *resposta = "ok";
         sendto(sockfd, resposta, strlen(resposta), 0, (struct sockaddr *)&clienteAddr, addrLen);
+
+        // Exibir tabela após receber as métricas
+        exibir_tabela();
     }
 
     close(sockfd);
@@ -115,8 +175,6 @@ void *cliente_udp(void *arg) {
     struct sockaddr_in servidorAddr;
     char buffer[BUFFER_SIZE];
     socklen_t addrLen = sizeof(servidorAddr);
-    char ip_local[INET_ADDRSTRLEN];
-
     // Obter o IP local da máquina
     obter_ip_local(ip_local);
     printf("IP local: %s\n", ip_local);
@@ -154,53 +212,19 @@ void *cliente_udp(void *arg) {
     return NULL;
 }
 
-// Função para exibir o menu
-void mostrar_menu() {
-    printf("Menu de Configuração\n");
-    printf("1. Definir Periodicidade das Coletas de Métricas\n");
-    printf("2. Selecionar Máquinas Envolvidas\n");
-    printf("3. Iniciar Coleta de Métricas\n");
-    printf("4. Sair\n");
-}
-
 int main() {
     pthread_t threadServidor, threadCliente;
-    int opcao;
 
     // Número de servidores
     numServidores = sizeof(enderecosIPs) / sizeof(enderecosIPs[0]);
 
-    while (1) {
-        mostrar_menu();
-        printf("Escolha uma opção: ");
-        scanf("%d", &opcao);
+    // Criar as threads para servidor e cliente
+    pthread_create(&threadServidor, NULL, servidor_udp, NULL);
+    pthread_create(&threadCliente, NULL, cliente_udp, NULL);
 
-        switch (opcao) {
-            case 1:
-                printf("Digite a nova periodicidade (segundos): ");
-                scanf("%d", &periodicidade);
-                break;
-            case 2:
-                printf("Máquinas disponíveis:\n");
-                for (int i = 0; i < numServidores; i++) {
-                    printf("%d. %s\n", i + 1, enderecosIPs[i]);
-                }
-                // Implementar lógica para selecionar máquinas
-                break;
-            case 3:
-                // Criar as threads do servidor e do cliente
-                pthread_create(&threadServidor, NULL, servidor_udp, NULL);
-                pthread_create(&threadCliente, NULL, cliente_udp, NULL);
-                pthread_join(threadServidor, NULL);
-                pthread_join(threadCliente, NULL);
-                break;
-            case 4:
-                printf("Saindo...\n");
-                exit(EXIT_SUCCESS);
-            default:
-                printf("Opção inválida.\n");
-        }
-    }
+    // Esperar as threads terminarem
+    pthread_join(threadServidor, NULL);
+    pthread_join(threadCliente, NULL);
 
     return 0;
 }
