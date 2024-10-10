@@ -12,13 +12,9 @@
 #define PORT 8888
 #define BUFFER_SIZE 1024
 #define MAX_SERVERS 10
-
-const char *enderecosIPs[] = {
-    "172.17.0.2",
-    "172.17.0.3",
-    "172.17.0.4"
-};
-int numServidores;
+#define MAX_IPS 100  // Definindo um limite grande para o número de IPs
+char enderecosIPs[MAX_IPS][INET_ADDRSTRLEN];  // Alterar para um array de strings para armazenar os IPs dinamicamente
+int numServidores = 0;  // Inicializar o número de servidores
 int periodicidade = 10;
 char ip_local[INET_ADDRSTRLEN];
 float uso_cpu;
@@ -63,6 +59,24 @@ void obter_ip_local(char *ip_local) {
     }
 
     freeifaddrs(ifaddr);
+}
+
+void receber_enderecos_ips() {
+    char input[BUFFER_SIZE * 10];  // Buffer grande para suportar muitos IPs
+    printf("Digite os endereços IPs, separados por espaço: ");
+    fgets(input, sizeof(input), stdin);  // Recebe os IPs como uma string
+
+    // Usar strtok para separar os IPs
+    char *token = strtok(input, " ");
+    numServidores = 0;
+
+    // Processar cada IP fornecido
+    while (token != NULL && numServidores < MAX_IPS) {
+        strcpy(enderecosIPs[numServidores], token);  // Copia o IP para o array
+        enderecosIPs[numServidores][strcspn(enderecosIPs[numServidores], "\n")] = '\0'; // Remove o newline, se houver
+        numServidores++;
+        token = strtok(NULL, " ");
+    }
 }
 
 float calcular_uso_cpu() {
@@ -121,13 +135,13 @@ float calcular_latencia(const char *ip_maquina) {
         return -1.0f;
     }
 
-    if (fscanf(fp, "%f", &latencia) != 1) { // Verificação se a leitura da latência foi bem-sucedida
+    if (fscanf(fp, "%f", &latencia) != 1) {
         perror("Erro ao ler latência");
-        latencia = -1.0f; // Valor padrão em caso de erro
+        latencia = -1.0f;
     }
     pclose(fp);
 
-    return latencia; // Retorna a latência média
+    return latencia;
 }
 
 long calcular_uso_memoria() {
@@ -148,7 +162,7 @@ long calcular_uso_memoria() {
 void coletar_metricas(char *metricas, const char *ip_maquina) {
     uso_cpu = calcular_uso_cpu();
     uso_memoria = calcular_uso_memoria();
-    float latencia = calcular_latencia(ip_maquina); // Chama a função que retorna a latência
+    float latencia = calcular_latencia(ip_maquina);
 
     snprintf(metricas, BUFFER_SIZE, "IP: %s - CPU: %.2f%% - Memória: %ldMB - Latência: %.2fms\n", ip_maquina, uso_cpu, uso_memoria, latencia);
 }
@@ -157,16 +171,15 @@ void coletar_metricas(char *metricas, const char *ip_maquina) {
 // Função para calcular e armazenar as métricas
 void armazenar_metricas(const char *metricas) {
     char ip[INET_ADDRSTRLEN];
-    float cpu = 0.0; // Inicializa cpu
-    long memoria = 0; // Inicializa memoria
-    float latencia = 0.0; // Inicializa latencia
+    float cpu = 0.0;
+    long memoria = 0;
+    float latencia = 0.0;
 
     // Extrair IP, uso de CPU e memória das métricas recebidas
     sscanf(metricas, "IP: %s - CPU: %f%% - Memória: %ldMB - Latência: %fms", ip, &cpu, &memoria, &latencia);
 
     for (int i = 0; i < numServidores; i++) {
         if (strcmp(ip, enderecosIPs[i]) == 0) {
-            // Atualizar métricas para este servidor
             metrics[i].total_cpu += cpu;
             metrics[i].total_latencia += latencia;
             metrics[i].total_memoria += memoria;
@@ -181,7 +194,7 @@ void armazenar_metricas(const char *metricas) {
 void exibir_tabela() {
     printf("\n+-----------------+--------------------+-----------------------+--------------------+----------+\n");
     printf("| IP              | Média CPU (%)      | Média Memória (MB)    | Média Latência (ms)| Contagem |\n");
-    printf("+-----------------+--------------------+-----------------------+------------------------------+\n");
+    printf("+-----------------+--------------------+-----------------------+-------------------------------+\n");
     
     for (int i = 0; i < numServidores; i++) {
         if (metrics[i].contagem > 0) {
@@ -198,6 +211,20 @@ void exibir_tabela() {
     printf("IP local: %s\n", ip_local);
 }
 
+void *ajustar_periodicidade(void *arg) {
+    while (1) {
+        printf("Digite o novo valor de periodicidade em segundos (0 para sair): ");
+        int novo_periodo;
+        scanf("%d", &novo_periodo);
+        if (novo_periodo == 0) {
+            printf("Saindo do ajuste de periodicidade.\n");
+            break;
+        }
+        periodicidade = novo_periodo;
+        printf("Periodicidade atualizada para %d segundos.\n", periodicidade);
+    }
+    return NULL;
+}
 
 // Função para o servidor UDP (para receber mensagens e métricas)
 void *servidor_udp(void *arg) {
@@ -240,17 +267,13 @@ void *servidor_udp(void *arg) {
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clienteAddr, &addrLen);
         buffer[n] = '\0';
 
-        // Apenas exibir as métricas recebidas
         printf("Métricas recebidas: %s\n", buffer);
 
-        // Armazenar métricas
         armazenar_metricas(buffer);
 
-        // Enviar confirmação
         const char *resposta = "ok";
         sendto(sockfd, resposta, strlen(resposta), 0, (struct sockaddr *)&clienteAddr, addrLen);
 
-        // Exibir tabela após receber as métricas
         exibir_tabela();
     }
 
@@ -286,7 +309,7 @@ void *cliente_udp(void *arg) {
         coletar_metricas(metricas, ip_local);
         printf("Enviando métricas: %s\n", metricas);
 
-        // Enviar métricas para cada servidor, exceto para o próprio IP
+        // Enviar métricas para cada servidor
         for (int i = 0; i < numServidores; i++) {
             inet_pton(AF_INET, enderecosIPs[i], &servidorAddr.sin_addr);
             sendto(sockfd, metricas, strlen(metricas), 0, (const struct sockaddr *)&servidorAddr, sizeof(servidorAddr));
@@ -300,18 +323,36 @@ void *cliente_udp(void *arg) {
 }
 
 int main() {
-    pthread_t threadServidor, threadCliente;
+    //numServidores = sizeof(enderecosIPs) / sizeof(enderecosIPs[0]);
+    receber_enderecos_ips();
+    // Obter o IP local da máquina
+    //obter_ip_local(ip_local);
+    //printf("IP local: %s\n", ip_local);
 
-    // Número de servidores
-    numServidores = sizeof(enderecosIPs) / sizeof(enderecosIPs[0]);
+    // Criar thread para o servidor UDP
+    pthread_t thread_servidor;
+    if (pthread_create(&thread_servidor, NULL, servidor_udp, NULL) != 0) {
+        perror("Erro ao criar thread do servidor");
+        return EXIT_FAILURE;
+    }
 
-    // Criar as threads para servidor e cliente
-    pthread_create(&threadServidor, NULL, servidor_udp, NULL);
-    pthread_create(&threadCliente, NULL, cliente_udp, NULL);
-
-    // Esperar as threads terminarem
-    pthread_join(threadServidor, NULL);
-    pthread_join(threadCliente, NULL);
+    // Criar thread para o cliente UDP
+    pthread_t thread_cliente;
+    if (pthread_create(&thread_cliente, NULL, cliente_udp, NULL) != 0) {
+        perror("Erro ao criar thread do cliente");
+        return EXIT_FAILURE;
+    }
+    // Criar thread para ajustar a periodicidade
+    pthread_t thread_periodicidade;
+    if (pthread_create(&thread_periodicidade, NULL, ajustar_periodicidade, NULL) != 0) {
+        perror("Erro ao criar thread de ajuste de periodicidade");
+        return EXIT_FAILURE;
+    }
+    
+    // Aguardar as threads de cliente e servidor
+    pthread_join(thread_cliente, NULL);
+    pthread_join(thread_servidor, NULL);
+    pthread_join(thread_periodicidade, NULL);
 
     return 0;
 }
