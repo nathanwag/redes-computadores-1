@@ -12,9 +12,9 @@
 #define PORT 8888
 #define BUFFER_SIZE 1024
 #define MAX_SERVERS 10
-#define MAX_IPS 100  // Definindo um limite grande para o número de IPs
-char enderecosIPs[MAX_IPS][INET_ADDRSTRLEN];  // Alterar para um array de strings para armazenar os IPs dinamicamente
-int numServidores = 0;  // Inicializar o número de servidores
+#define MAX_IPS 100 
+char enderecosIPs[MAX_IPS][INET_ADDRSTRLEN];
+int numServidores = 0; 
 int periodicidade = 10;
 char ip_local[INET_ADDRSTRLEN];
 float uso_cpu;
