@@ -6,6 +6,7 @@ apt install -y bpftrace
 apt install -y bpftool
 apt install -y nano
 apt install -y net-tools
+apt install iputils-ping
 
 mount -t tracefs tracefs /sys/kernel/tracing
 
