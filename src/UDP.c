@@ -291,7 +291,6 @@ void *cliente_udp(void *arg) {
     obter_ip_local(ip_local);
     printf("IP local: %s\n", ip_local);
 
-    // Criação do socket
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Erro ao criar socket");
         exit(EXIT_FAILURE);
@@ -305,7 +304,6 @@ void *cliente_udp(void *arg) {
     while (1) {
         char metricas[BUFFER_SIZE] = "";
 
-        // Coletar métricas simuladas
         coletar_metricas(metricas, ip_local);
         printf("Enviando métricas: %s\n", metricas);
 
@@ -323,11 +321,7 @@ void *cliente_udp(void *arg) {
 }
 
 int main() {
-    //numServidores = sizeof(enderecosIPs) / sizeof(enderecosIPs[0]);
     receber_enderecos_ips();
-    // Obter o IP local da máquina
-    //obter_ip_local(ip_local);
-    //printf("IP local: %s\n", ip_local);
 
     // Criar thread para o servidor UDP
     pthread_t thread_servidor;
